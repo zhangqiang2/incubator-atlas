@@ -18,11 +18,30 @@
 
 package org.apache.atlas.service;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.inject.Inject;
-import com.thinkaurelius.titan.core.TitanGraph;
-import com.thinkaurelius.titan.core.util.TitanCleanup;
+import static org.apache.atlas.TestUtils.COLUMNS_ATTR_NAME;
+import static org.apache.atlas.TestUtils.COLUMN_TYPE;
+import static org.apache.atlas.TestUtils.PII;
+import static org.apache.atlas.TestUtils.TABLE_TYPE;
+import static org.apache.atlas.TestUtils.createColumnEntity;
+import static org.apache.atlas.TestUtils.createDBEntity;
+import static org.apache.atlas.TestUtils.createInstance;
+import static org.apache.atlas.TestUtils.createTableEntity;
+import static org.apache.atlas.TestUtils.randomString;
+import static org.apache.atlas.typesystem.types.utils.TypesUtil.createClassTypeDef;
+import static org.apache.atlas.typesystem.types.utils.TypesUtil.createOptionalAttrDef;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.atlas.AtlasClient;
 import org.apache.atlas.AtlasException;
 import org.apache.atlas.EntityAuditEvent;
@@ -35,7 +54,7 @@ import org.apache.atlas.query.QueryParams;
 import org.apache.atlas.repository.audit.EntityAuditRepository;
 import org.apache.atlas.repository.audit.HBaseBasedAuditRepository;
 import org.apache.atlas.repository.audit.HBaseTestUtils;
-import org.apache.atlas.repository.graph.GraphProvider;
+import org.apache.atlas.repository.graph.AtlasGraphProvider;
 import org.apache.atlas.services.MetadataService;
 import org.apache.atlas.typesystem.IReferenceableInstance;
 import org.apache.atlas.typesystem.IStruct;
@@ -68,37 +87,14 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Guice;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.apache.atlas.TestUtils.COLUMNS_ATTR_NAME;
-import static org.apache.atlas.TestUtils.COLUMN_TYPE;
-import static org.apache.atlas.TestUtils.PII;
-import static org.apache.atlas.TestUtils.TABLE_TYPE;
-import static org.apache.atlas.TestUtils.createColumnEntity;
-import static org.apache.atlas.TestUtils.createDBEntity;
-import static org.apache.atlas.TestUtils.createInstance;
-import static org.apache.atlas.TestUtils.createTableEntity;
-import static org.apache.atlas.TestUtils.randomString;
-import static org.apache.atlas.typesystem.types.utils.TypesUtil.createClassTypeDef;
-import static org.apache.atlas.typesystem.types.utils.TypesUtil.createOptionalAttrDef;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.inject.Inject;
 
 @Guice(modules = RepositoryMetadataModule.class)
 public class DefaultMetadataServiceTest {
     @Inject
     private MetadataService metadataService;
-
-    @Inject
-    private GraphProvider<TitanGraph> graphProvider;
 
     @Inject
     private EntityAuditRepository auditRepository;
@@ -121,7 +117,7 @@ public class DefaultMetadataServiceTest {
             HBaseTestUtils.startCluster();
             ((HBaseBasedAuditRepository) auditRepository).start();
         }
-        RequestContext.createContext();
+        TestUtils.resetRequestContext();
         RequestContext.get().setUser("testuser");
 
         TypesDef typesDef = TestUtils.defineHiveTypes();
@@ -142,25 +138,18 @@ public class DefaultMetadataServiceTest {
 
     @AfterTest
     public void shutdown() throws Exception {
-        TypeSystem.getInstance().reset();
         try {
-            //TODO - Fix failure during shutdown while using BDB
-            graphProvider.get().shutdown();
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-        try {
-            TitanCleanup.clear(graphProvider.get());
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
+            TypeSystem.getInstance().reset();
 
-        if (auditRepository instanceof HBaseBasedAuditRepository) {
-            ((HBaseBasedAuditRepository) auditRepository).stop();
-            HBaseTestUtils.stopCluster();
+            if (auditRepository instanceof HBaseBasedAuditRepository) {
+                ((HBaseBasedAuditRepository) auditRepository).stop();
+                HBaseTestUtils.stopCluster();
+            }
+        }
+        finally {
+            AtlasGraphProvider.cleanup();
         }
     }
-
     private AtlasClient.EntityResult updateInstance(Referenceable entity) throws Exception {
         RequestContext.createContext();
         ParamChecker.notNull(entity, "Entity");
@@ -269,10 +258,9 @@ public class DefaultMetadataServiceTest {
         assertEquals(traits.get(0), PII);
 
         //getTrait
-        String traitDefinition = metadataService.getTraitDefinition(id, PII);
-        Struct traitResult = InstanceSerialization.fromJsonStruct(traitDefinition, true);
-        Assert.assertNotNull(traitResult);
-        assertEquals(traitResult.getValuesMap().size(), 0);
+        IStruct traitDefinition = metadataService.getTraitDefinition(id, PII);
+        Assert.assertNotNull(traitDefinition);
+        assertEquals(traitDefinition.getValuesMap().size(), 0);
 
         //delete trait
         metadataService.deleteTrait(id, PII);
@@ -771,7 +759,7 @@ public class DefaultMetadataServiceTest {
     @Test
     public void testArrayOfStructs() throws Exception {
         //Add array of structs
-        TestUtils.dumpGraph(graphProvider.get());
+        TestUtils.dumpGraph(TestUtils.getGraph());
 
         final Struct partition1 = new Struct(TestUtils.PARTITION_STRUCT_TYPE);
         partition1.set(NAME, "part1");

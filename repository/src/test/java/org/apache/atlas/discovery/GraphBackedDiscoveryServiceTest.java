@@ -18,7 +18,23 @@
 
 package org.apache.atlas.discovery;
 
-import com.google.common.collect.ImmutableSet;
+import static org.apache.atlas.typesystem.types.utils.TypesUtil.createClassTypeDef;
+import static org.apache.atlas.typesystem.types.utils.TypesUtil.createOptionalAttrDef;
+import static org.apache.atlas.typesystem.types.utils.TypesUtil.createRequiredAttrDef;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.inject.Inject;
+
 import org.apache.atlas.AtlasException;
 import org.apache.atlas.BaseRepositoryTest;
 import org.apache.atlas.RepositoryMetadataModule;
@@ -28,8 +44,8 @@ import org.apache.atlas.discovery.graph.GraphBackedDiscoveryService;
 import org.apache.atlas.query.QueryParams;
 import org.apache.atlas.repository.Constants;
 import org.apache.atlas.repository.MetadataRepository;
+import org.apache.atlas.repository.graph.AtlasGraphProvider;
 import org.apache.atlas.repository.graph.GraphBackedSearchIndexer;
-import org.apache.atlas.repository.graph.TitanGraphProvider;
 import org.apache.atlas.typesystem.ITypedReferenceableInstance;
 import org.apache.atlas.typesystem.Referenceable;
 import org.apache.atlas.typesystem.persistence.Id;
@@ -49,21 +65,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Guice;
 import org.testng.annotations.Test;
 
-import javax.inject.Inject;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import static org.apache.atlas.typesystem.types.utils.TypesUtil.createClassTypeDef;
-import static org.apache.atlas.typesystem.types.utils.TypesUtil.createOptionalAttrDef;
-import static org.apache.atlas.typesystem.types.utils.TypesUtil.createRequiredAttrDef;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
+import com.google.common.collect.ImmutableSet;
 
 @Guice(modules = RepositoryMetadataModule.class)
 public class GraphBackedDiscoveryServiceTest extends BaseRepositoryTest {
@@ -75,6 +77,7 @@ public class GraphBackedDiscoveryServiceTest extends BaseRepositoryTest {
     private GraphBackedDiscoveryService discoveryService;
     private QueryParams queryParams = new QueryParams(40, 0);
 
+    @Override
     @BeforeClass
     public void setUp() throws Exception {
         super.setUp();
@@ -112,11 +115,11 @@ public class GraphBackedDiscoveryServiceTest extends BaseRepositoryTest {
             }
 
         }
-        TitanGraphProvider provider = new TitanGraphProvider();
+      
         //We need to commit the transaction before creating the indices to release the locks held by the transaction.
         //otherwise, the index commit will fail while waiting for the those locks to be released.
-        provider.get().commit();
-        GraphBackedSearchIndexer idx = new GraphBackedSearchIndexer(provider);
+        AtlasGraphProvider.getGraphInstance().commit();
+        GraphBackedSearchIndexer idx = new GraphBackedSearchIndexer();
         idx.onAdd(newTypes);
 	}
 
@@ -393,6 +396,9 @@ public class GraphBackedDiscoveryServiceTest extends BaseRepositoryTest {
                 {"Metric", 9},
                 {"PII", 8},
                 {"`Log Data`", 4},
+                // Not sure what the expected rows should be, but since we didn't assign or do anything with the created
+                // I assume it'll be zero
+                {"`isa`", 0},
 
                 /* Lineage queries are fired through ClosureQuery and are tested through HiveLineageJerseyResourceIt in webapp module.
                    Commenting out the below queries since DSL to Gremlin parsing/translation fails with lineage queries when there are array types

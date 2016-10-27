@@ -20,7 +20,6 @@ package org.apache.atlas.hive.model;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.atlas.AtlasClient;
 import org.apache.atlas.AtlasConstants;
 import org.apache.atlas.AtlasException;
@@ -107,6 +106,7 @@ public class HiveDataModelGenerator {
 
         // DDL/DML Process
         createProcessClass();
+        createColumnLineageClass();
     }
 
     public TypesDef getTypesDef() {
@@ -229,7 +229,7 @@ public class HiveDataModelGenerator {
                 new AttributeDefinition(POSITION, DataTypes.INT_TYPE.getName(), Multiplicity.OPTIONAL, false, false, false, null)};
 
         HierarchicalTypeDefinition<ClassType> definition =
-                new HierarchicalTypeDefinition<>(ClassType.class, HiveDataTypes.HIVE_COLUMN.getName(), null,
+                new HierarchicalTypeDefinition<>(ClassType.class, HiveDataTypes.HIVE_COLUMN.getName(), null, "1.1",
                     ImmutableSet.of(AtlasClient.DATA_SET_SUPER_TYPE), attributeDefinitions);
         classTypeDefinitions.put(HiveDataTypes.HIVE_COLUMN.getName(), definition);
         LOG.debug("Created definition for " + HiveDataTypes.HIVE_COLUMN.getName());
@@ -328,4 +328,23 @@ public class HiveDataModelGenerator {
         }
     }
 
+    private void createColumnLineageClass() throws AtlasException {
+
+        AttributeDefinition[] attributeDefinitions = new AttributeDefinition[]{
+                new AttributeDefinition("query", HiveDataTypes.HIVE_PROCESS.getName(),
+                        Multiplicity.REQUIRED, false, null),
+                new AttributeDefinition("depenendencyType",DataTypes.STRING_TYPE.getName(),
+                        Multiplicity.REQUIRED, false, null),
+                new AttributeDefinition("expression",DataTypes.STRING_TYPE.getName(),
+                        Multiplicity.OPTIONAL, false, null)
+        };
+        HierarchicalTypeDefinition<ClassType> definition =
+                new HierarchicalTypeDefinition<>(ClassType.class, HiveDataTypes.HIVE_COLUMN_LINEAGE.getName(), null,
+                        ImmutableSet.of(AtlasClient.PROCESS_SUPER_TYPE), attributeDefinitions);
+        classTypeDefinitions.put(HiveDataTypes.HIVE_COLUMN_LINEAGE.getName(), definition);
+        LOG.debug("Created definition for " + HiveDataTypes.HIVE_COLUMN_LINEAGE.getName());
+
+    }
+
 }
+

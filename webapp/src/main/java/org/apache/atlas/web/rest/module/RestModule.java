@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,13 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.atlas.web.rest.module;
 
-package org.apache.atlas.repository.graph;
+import com.google.inject.AbstractModule;
 
-import com.google.inject.throwingproviders.CheckedProvider;
-import com.tinkerpop.blueprints.Graph;
+import org.apache.atlas.type.AtlasTypeRegistry;
 
-public interface GraphProvider<T extends Graph> extends CheckedProvider<T> {
+public class RestModule extends AbstractModule {
     @Override
-    T get();
+    protected void configure() {
+        bind(AtlasTypeRegistry.class).to(AtlasTypeRegistry.class).asEagerSingleton();
+    }
 }
